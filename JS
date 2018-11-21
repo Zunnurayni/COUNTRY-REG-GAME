@@ -1,0 +1,341 @@
+const initialState = {
+	countryList: [],
+	currentCountry: '',
+	currentCountryIndex: 0,
+	shuffledName: '',
+	userInput: '',
+	userPoints: 5,
+	countryScore: 0,
+	hintIndex: 1,
+	timer: 45,
+	interval: null,
+	dataFetched: false
+};
+
+// getting Countries List from the DB
+// If you search for Countries you won't get them :P
+const request = () => {
+	fetch("https://fruit-shop-e6e45.firebaseio.com/lists/-LR3XCuC0awE8T6Jq8OW.json")
+		.then(res => res.json())
+		.then(resJson => {
+			initialState.dataFetched = true;
+			state.dataFetched = true;
+			[...resJson].forEach(el => initialState.countryList.push(el))
+			state.countryList = [...initialState.countryList];
+		})
+		.catch(err => console.log(err));
+	checkMobile();
+}
+
+window.onload = request;
+
+const checkMobile = () => {
+	if (window.innerWidth < 600) {
+		const inputField = document.getElementById("inputField");
+		inputField.disabled = true;
+		const checkButton = document.getElementById("checkButton");
+		checkButton.setAttribute("onclick", "");
+	}
+}
+
+let state = Object.assign({}, initialState);
+
+const firstStart = () => {
+	if (state.dataFetched) {
+		start();
+	}
+	else {
+		setTimeout(firstStart, 1000)
+	}
+}
+
+const start = () => {
+	const playDiv = document.getElementById("playDiv");
+	const inputForm = document.getElementById("inputForm");
+	const pointField = document.getElementById("pointField");
+	const errorZone = document.getElementById("errorZone");
+	const timerContainer = document.getElementById('timerContainer');
+	const modalScreen = document.getElementById('modalScreen');
+
+	pointField.innerHTML = state.userPoints;
+	errorZone.innerHTML = '';
+	playDiv.style.display = "none";
+	modalScreen.style.display = "none";
+	inputForm.style.display = "flex";
+	timerContainer.style.color = "white";
+	state.hintIndex = 1;
+
+	timerRender();
+	do {
+		state.currentCountryIndex = Math.floor(Math.random() * state.countryList.length);
+	} while (state.countryList[state.currentCountryIndex] === null || state.countryList[state.currentCountryIndex] === undefined)
+	state.currentCountry = state.countryList[state.currentCountryIndex].toUpperCase();
+	do {
+		state.shuffledName = state.currentCountry.shuffle().toUpperCase();
+	}
+	while (state.shuffledName === state.currentCountry);
+	renderName();
+	state.countryList.splice(state.currentCountryIndex, 1);
+}
+
+const renderName = () => {
+	const nameDiv = document.getElementById("nameContainer")
+	nameDiv.removeChild(document.getElementById("listContainer"));
+	const container = nameDiv.appendChild(document.createElement("div"));
+	container.setAttribute("id", "listContainer");
+	for (const a of state.shuffledName) {
+		const listItem = document.createElement("li");
+		listItem.setAttribute("class", "listItem");
+		listItem.setAttribute("value", a);
+		listItem.setAttribute("onclick", "letterPressedHandler(this)");
+		listItem.innerHTML = a;
+		container.appendChild(listItem);
+	}
+}
+
+const letterPressedHandler = (element) => {
+	state.userInput += element.getAttribute("value");
+	element.setAttribute("onclick", "");
+	element.style.backgroundColor = "rgba(229, 29, 33, 0.4)";
+	const inputField = document.getElementById("inputField");
+	inputField.value = state.userInput;
+	if (state.userInput.length === state.currentCountry.length) {
+		checkAnswer();
+	}
+}
+
+const backspacePressedHandler = () => {
+	if (state.userInput) {
+	  const lastValue = state.userInput.slice(-1);
+	  const listItems = [...document.getElementsByClassName("listItem")];
+	  const el = listItems.find(el => el.getAttribute("value") === lastValue && el.style.backgroundColor === "rgba(229, 29, 33, 0.4)")
+	  el.setAttribute("onclick", "letterPressedHandler(this)");
+	  el.style.backgroundColor = "rgba(0, 0, 0, 0.3)";
+	  const inputField = document.getElementById("inputField");
+	  state.userInput = state.userInput.slice(0, -1);
+	  inputField.value = state.userInput;
+	}
+}
+
+const clearinputField = () => {
+	const inputField = document.getElementById("inputField");
+	inputField.value = '';
+	state.userInput = '';
+	renderName();
+}
+
+const checkAnswer = () => {
+	if (state.currentCountry === state.userInput.toUpperCase()) {
+		if (window.innerWidth > 600) {
+			const inputForm = document.getElementById("inputForm");
+			inputForm.style.backgroundColor = "#79C267";
+			setTimeout(() => { inputForm.style.backgroundColor = "rgb(197, 170, 127)" }, 500);
+		}
+		else {
+			const pointContainer = document.getElementById("pointContainer");
+			pointContainer.style.backgroundColor = "#79C267";
+			setTimeout(() => { pointContainer.style.backgroundColor = "rgba(0, 0, 0, 0.3)" }, 500);
+		}
+		changePoints(+1);
+		state.countryScore++;
+		clearinputField();
+		clearInterval(state.interval);
+		state.timer = initialState.timer;
+		if (state.countryList.length > 0)
+			start();
+		else
+			gameOver("Congratulations, you're the BEST!!");
+
+	}
+	else {
+		showError();
+		changePoints(-1);
+		clearinputField();
+	}
+}
+
+const changePoints = (num) => {
+	if (num > 0) {
+		state.userPoints += num;
+	}
+	else if (state.userPoints + num >= 0) {
+		state.userPoints += num;
+	}
+	else {
+		return;
+	}
+
+	const pointField = document.getElementById("pointField");
+	pointField.innerHTML = state.userPoints;
+}
+
+const onkeyupHandler = (e) => {
+	state.userInput = e.target.value.toUpperCase();
+	if (e.keyCode === 13) {
+		checkAnswer();
+	}
+}
+
+const changeQuestion = () => {
+	if (state.userPoints < 2) {
+		if (state.timer <= 0) {
+			//showError("Game over...");
+			clearInterval(state.interval);
+			gameOver("GAME OVER!<br><br>Your countryScore is: " + state.countryScore.toString());
+			return;
+		}
+		showError("You haven't enough points...");
+		return;
+	}
+	clearInterval(state.interval);
+	clearinputField();
+	state.timer = initialState.timer;
+	showError();
+	changePoints(-2);
+	start();
+}
+
+const getHint = () => {
+	if (state.hintIndex > 2 || state.userPoints < 1) {
+		showError("cost: 1p, max: 2 times");
+		return;
+	}
+	clearinputField();
+	state.userInput = state.currentCountry.substring(0, state.hintIndex);
+	inputField.value = state.currentCountry.substring(0, state.hintIndex);
+	deleteHintedLetter();
+	showError();
+	changePoints(-1);
+	state.timer += 5;
+	state.hintIndex++;
+}
+
+const deleteHintedLetter = () => {
+	const listElements = [...document.getElementsByClassName("listItem")];
+	if (state.hintIndex == 1) {
+		const hintedValue = state.currentCountry[state.hintIndex - 1];
+		const element = listElements.find(el => el.getAttribute("value") === hintedValue);
+		element.setAttribute("onclick", "");
+		element.style.backgroundColor = "rgba(229, 29, 33, 0.4)";
+	}
+	else {
+		const hintedValue1 = state.currentCountry[state.hintIndex - 2];
+		const hintedValue2 = state.currentCountry[state.hintIndex - 1];
+		const element1 = listElements.find(el => el.getAttribute("value") === hintedValue1);
+		element1.setAttribute("onclick", "");
+		element1.style.backgroundColor = "rgba(229, 29, 33, 0.4)";
+
+		const element2 = listElements.find(el => el.getAttribute("value") === hintedValue2);
+		element2.setAttribute("onclick", "");
+		element2.style.backgroundColor = "rgba(229, 29, 33, 0.4)";
+	}
+}
+
+const unlockAnswer = () => {
+	if (state.userPoints < 10) {
+		showError("You haven't enough points...");;
+		return;
+	}
+	clearinputField();
+	state.userInput = state.currentCountry;
+	inputField.value = state.currentCountry;
+	showError();
+	changePoints(-10);
+	state.timer += 5;
+}
+
+const timerRender = () => {
+	const timerContainer = document.getElementById('timerContainer');
+	timerContainer.innerHTML = "00:" + state.timer;
+	state.timer--;
+
+	state.interval = setInterval(() => {
+		if (state.timer > 9) {
+			timerContainer.innerHTML = "00:" + state.timer;
+		}
+		else {
+			timerContainer.style.color = "rgb(210, 114, 89)";
+			timerContainer.innerHTML = "00:0" + state.timer;
+		}
+		state.timer--;
+		if (state.timer < 0) {
+			changeQuestion();
+		}
+	}, 1000);
+}
+
+const showError = (text) => {
+	if (window.innerWidth > 600) {
+		const inputForm = document.getElementById("inputForm");
+		if (text) {
+			errorZone.innerHTML = text;
+			inputForm.style.backgroundColor = "#e84a4f";
+			setTimeout(() => { inputForm.style.backgroundColor = "rgb(197, 170, 127)" }, 500);
+		}
+		else {
+			inputForm.style.backgroundColor = "#e84a4f";
+			setTimeout(() => { inputForm.style.backgroundColor = "rgb(197, 170, 127)" }, 500);
+		}
+	}
+	else {
+		const pointContainer = document.getElementById("pointContainer");
+		if (text) {
+			errorZone.innerHTML = text;
+			pointContainer.style.backgroundColor = "#e84a4f";
+			setTimeout(() => { pointContainer.style.backgroundColor = "rgba(0, 0, 0, 0.3)" }, 500);
+		}
+		else {
+			pointContainer.style.backgroundColor = "#e84a4f";
+			setTimeout(() => { pointContainer.style.backgroundColor = "rgba(0, 0, 0, 0.3)" }, 500);
+		}
+	}
+}
+
+const gameOver = (text) => {
+  clearinputField();
+	state = Object.assign({}, initialState);
+	renderModal(text);
+}
+
+const renderModal = (text) => {
+	const inputForm = document.getElementById('inputForm');
+	inputForm.style.display = "none";
+	const modalScreen = document.getElementById('modalScreen');
+	modalScreen.style.display = "flex";
+	const modalText = document.getElementById('modalText');
+	modalText.innerHTML = text;
+}
+
+const closeModal = () => {
+	const modalScreen = document.getElementById('modalScreen');
+	const modalText = document.getElementById('modalText');
+	modalText.innerHTML = '';
+	modalScreen.style.display = "none";
+	errorZone.innerHTML = '';
+	const playDiv = document.getElementById("playDiv");
+	const inputForm = document.getElementById("inputForm");
+	playDiv.style.display = "flex";
+	inputForm.style.display = "none";
+}
+
+
+// adding some functions to String prototype
+String.prototype.shuffle = function () {
+	var a = this.split(""),
+		n = a.length;
+	for (var i = n - 1; i > 0; i--) {
+		var j = Math.floor(Math.random() * (i + 1));
+		var tmp = a[i];
+		a[i] = a[j];
+		a[j] = tmp;
+	}
+	return a.join("");
+}
+
+String.prototype.insert = function (index, string) {
+	if (index > 0)
+		return this.substring(0, index) + string + this.substring(index, this.length);
+	else
+		return string + this;
+};
+
